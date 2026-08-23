@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chem
+      POSTGRES_PASSWORD: chem
+      POSTGRES_DB: chem_pdf
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    profiles: ["full"]
+
+  scientific:
+    build:
+      context: .
+      dockerfile: docker/scientific.Dockerfile
+    env_file: .env
+    environment:
+      SCIENTIFIC_HOST: 0.0.0.0
+      SCIENTIFIC_PORT: 8100
+      MINERU_API_URL: ${MINERU_API_URL:-http://127.0.0.1:8000}
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./data:/app/data
+      - ./services/scientific:/app
+
+  server:
+    build:
+      context: .
+      dockerfile: docker/server.Dockerfile
+    env_file: .env
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SCIENTIFIC_URL: http://scientific:8100
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/data
+      - ./apps/server:/app/apps/server
+    depends_on:
+      - scientific
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/app/apps/web
+    depends_on:
+      - server
+
+  # MinerU CUDA images are intentionally not bundled.
+  # Start MinerU on the host or another GPU machine, then set MINERU_API_URL.
+
+volumes:
+  postgres_data:

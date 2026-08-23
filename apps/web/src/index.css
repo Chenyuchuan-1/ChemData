@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+:root {
+  --accent: #6d5ef5;
+  --accent-soft: rgba(109, 94, 245, 0.12);
+  --line: #e7e7ea;
+  --muted: #6b7280;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: #ffffff;
+  color: #111827;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.bbox-highlight {
+  background: rgba(109, 94, 245, 0.16);
+  border: 1.5px solid rgba(109, 94, 245, 0.7);
+  box-shadow: none;
+}
+
+.timeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 999px;
+}

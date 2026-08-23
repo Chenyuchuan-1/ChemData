@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build / generated frontend assets
+dist/
+build/
+apps/web/dist/
+apps/server/dist/
+apps/web/public/pdfjs/
+**/.vite/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data, uploaded PDFs, MinerU outputs, review exports
+/data/*
+!/data/.gitkeep
+!/data/documents/
+/data/documents/*
+!/data/documents/.gitkeep
+
+# Local source PDFs and batch inputs (not part of the public repo)
+/zcy/
+
+# Generated demo PDF (recreate with scripts/generate_demo_pdf.py)
+/samples/*.pdf
+!/samples/.gitkeep
+
+# Caches (HuggingFace / MinerU / pip / tooling)
+.cache/
+**/.cache/
+.caches/
+*.cache
+
+# Other process artifacts
+output/
+.mineru-output/
+*.log
+*.tmp
+*.temp
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

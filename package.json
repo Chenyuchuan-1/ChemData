@@ -1,0 +1,21 @@
+{
+  "name": "chem-pdf-agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Agent-driven chemistry PDF parsing and reaction extraction platform",
+  "workspaces": [
+    "apps/web",
+    "apps/server"
+  ],
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:server": "npm run dev --workspace=apps/server",
+    "build": "npm run build --workspace=apps/server && npm run build --workspace=apps/web",
+    "scientific": "bash scripts/start-scientific.sh",
+    "mineru": "bash scripts/start-mineru.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
