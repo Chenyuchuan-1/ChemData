@@ -10,6 +10,7 @@ import {
   type ParsedBlock,
   type ParseProgress,
   type ReactionRecord,
+  type TableRecord,
 } from "../api/client";
 import FileSidebar from "../features/documents/FileSidebar";
 import ParseProgressBanner from "../features/documents/ParseProgress";
@@ -17,9 +18,10 @@ import PdfViewer from "../features/pdf-viewer/PdfViewer";
 import ParsedPanel from "../features/parsed-view/ParsedPanel";
 import AgentPanel from "../features/agent/AgentPanel";
 import ReactionReview from "../features/reactions/ReactionReview";
+import { hitField, type ExtractKind } from "../features/extract/ExtractedResults";
 
 type RightMode = "parsed" | "agent" | "review";
-type ParsedTab = "markdown" | "chemistry" | "json";
+type ParsedTab = "markdown" | "chemistry" | "json" | "extract";
 
 export default function DocumentPage() {
   const { documentId = "" } = useParams();
@@ -29,6 +31,10 @@ export default function DocumentPage() {
   const [blocks, setBlocks] = useState<ParsedBlock[]>([]);
   const [markdown, setMarkdown] = useState("");
   const [reactions, setReactions] = useState<ReactionRecord[]>([]);
+  const [tables, setTables] = useState<TableRecord[]>([]);
+  const [extractKind, setExtractKind] = useState<ExtractKind>("reactions");
+  const [selectedExtractId, setSelectedExtractId] = useState<string | null>(null);
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [rightMode, setRightMode] = useState<RightMode>("parsed");
@@ -49,17 +55,19 @@ export default function DocumentPage() {
   };
 
   const refreshDocument = async (id: string) => {
-    const [list, detail, md, extracted] = await Promise.all([
+    const [list, detail, md, extracted, tableRows] = await Promise.all([
       api.listDocuments(),
       api.getDocument(id),
       api.markdown(id).catch(() => ({ markdown: "" })),
       api.reactions(id).catch(() => ({ reactions: [] })),
+      api.tables(id).catch(() => ({ tables: [] })),
     ]);
     setDocuments(list.documents);
     setDocument(detail.document);
     setBlocks(detail.blocks);
     setMarkdown(md.markdown);
     setReactions(extracted.reactions);
+    setTables(tableRows.tables);
     return detail.document;
   };
 
@@ -117,8 +125,41 @@ export default function DocumentPage() {
     };
   }, [documentId]);
 
-  const jump = (page: number, bbox: number[]) => {
+  const jump = (page: number, bbox: number[], blockId?: string) => {
+    if (blockId) setSelectedBlockId(blockId);
     setHighlight({ page_no: page, bbox });
+  };
+
+  const selectReaction = (reaction: ReactionRecord) => {
+    setSelectedExtractId(reaction.id);
+    setExtractKind("reactions");
+    setActiveReaction(reaction);
+    jump(reaction.provenance.page_no ?? 1, reaction.provenance.bbox ?? [0.1, 0.1, 0.9, 0.9]);
+  };
+
+  const selectTable = (table: TableRecord) => {
+    setSelectedExtractId(table.id);
+    setExtractKind("tables");
+    jump(Number(table.provenance.page_no ?? 1), table.provenance.bbox ?? [0.1, 0.1, 0.9, 0.9]);
+  };
+
+  const handlePdfClick = (page: number, x: number, y: number) => {
+    const hit = hitField(page, x, y, blocks, reactions, tables);
+    if (!hit) return;
+    setHighlight({ page_no: hit.page, bbox: hit.bbox });
+    if (hit.type === "block") {
+      setSelectedBlockId(hit.id);
+      return;
+    }
+    setSelectedExtractId(hit.id);
+    if (hit.type === "reaction") {
+      setExtractKind("reactions");
+      const reaction = reactions.find((item) => item.id === hit.id);
+      if (reaction) setActiveReaction(reaction);
+    } else {
+      setExtractKind("tables");
+    }
+    if (rightMode === "parsed") setTab("extract");
   };
 
   const startExtract = async (example: unknown, instruction: string) => {
@@ -132,6 +173,7 @@ export default function DocumentPage() {
       setEvents((current) => [...current, event]);
       if (event.type === "record_saved" || event.type === "agent_completed") {
         void api.reactions(documentId).then((result) => setReactions(result.reactions));
+        void api.tables(documentId).then((result) => setTables(result.tables)).catch(() => undefined);
       }
       if (event.type === "agent_completed" || event.type === "agent_failed") {
         setRunning(false);
@@ -223,7 +265,12 @@ export default function DocumentPage() {
         />
 
         <div className="flex min-w-0 flex-[48] ">
-          <PdfViewer url={pdfUrl(documentId)} filename={current?.filename ?? ""} highlight={highlight} />
+          <PdfViewer
+            url={pdfUrl(documentId)}
+            filename={current?.filename ?? ""}
+            highlight={highlight}
+            onPdfClick={handlePdfClick}
+          />
         </div>
 
         <div className="flex min-w-0 flex-[42] flex-col border-l border-zinc-200">
@@ -241,22 +288,32 @@ export default function DocumentPage() {
               markdown={markdown}
               blocks={blocks}
               onJump={jump}
+              reactions={reactions}
+              tables={tables}
+              extractKind={extractKind}
+              onExtractKind={setExtractKind}
+              selectedExtractId={selectedExtractId}
+              selectedBlockId={selectedBlockId}
+              onSelectReaction={selectReaction}
+              onSelectTable={selectTable}
             />
           )}
           {rightMode === "agent" && (
             <AgentPanel
+              documentId={documentId}
               events={events}
               running={running}
               reactions={reactions}
+              tables={tables}
+              extractKind={extractKind}
+              onExtractKind={setExtractKind}
+              selectedExtractId={selectedExtractId}
               onStart={startExtract}
-              onSelect={(reaction) => {
-                setActiveReaction(reaction);
-                jump(reaction.provenance.page_no ?? 1, reaction.provenance.bbox ?? [0.1, 0.1, 0.9, 0.9]);
-              }}
+              onSelect={selectReaction}
+              onSelectTable={selectTable}
               onOpenReview={(reaction) => {
-                setActiveReaction(reaction);
+                selectReaction(reaction);
                 setRightMode("review");
-                jump(reaction.provenance.page_no ?? 1, reaction.provenance.bbox ?? [0.1, 0.1, 0.9, 0.9]);
               }}
             />
           )}

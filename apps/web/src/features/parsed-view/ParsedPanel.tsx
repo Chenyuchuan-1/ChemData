@@ -1,12 +1,21 @@
+import { useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
-import { assetUrl, type ParsedBlock } from "../../api/client";
+import { assetUrl, type ParsedBlock, type ReactionRecord, type TableRecord } from "../../api/client";
+import ExtractedResults, { type ExtractKind } from "../extract/ExtractedResults";
 
-type Tab = "markdown" | "chemistry" | "json";
+type Tab = "markdown" | "chemistry" | "json" | "extract";
+
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: "markdown", label: "Markdown" },
+  { id: "chemistry", label: "化学元素" },
+  { id: "json", label: "JSON" },
+  { id: "extract", label: "Agent 抽取结果" },
+];
 
 export default function ParsedPanel({
   documentId,
@@ -15,37 +24,61 @@ export default function ParsedPanel({
   markdown,
   blocks,
   onJump,
+  reactions,
+  tables,
+  extractKind,
+  onExtractKind,
+  selectedExtractId,
+  selectedBlockId,
+  onSelectReaction,
+  onSelectTable,
 }: {
   documentId: string;
   tab: Tab;
   onTab: (tab: Tab) => void;
   markdown: string;
   blocks: ParsedBlock[];
-  onJump: (page: number, bbox: number[]) => void;
+  onJump: (page: number, bbox: number[], blockId?: string) => void;
+  reactions: ReactionRecord[];
+  tables: TableRecord[];
+  extractKind: ExtractKind;
+  onExtractKind: (kind: ExtractKind) => void;
+  selectedExtractId?: string | null;
+  selectedBlockId?: string | null;
+  onSelectReaction: (reaction: ReactionRecord) => void;
+  onSelectTable: (table: TableRecord) => void;
 }) {
-  const reactions = blocks.filter((block) => /反应|reaction|scheme|yield|产率|>>|→/i.test(block.text ?? "") || ["image", "table", "equation"].includes(block.block_type));
+  const reactionBlocks = blocks.filter(
+    (block) =>
+      /反应|reaction|scheme|yield|产率|>>|→/i.test(block.text ?? "") || ["image", "table", "equation"].includes(block.block_type),
+  );
   const groups = {
     分子: blocks.filter((block) => /mol|smiles|compound|化合物/i.test(block.text ?? "")),
-    反应: reactions,
+    反应: reactionBlocks,
     表格: blocks.filter((block) => block.block_type === "table"),
     图片: blocks.filter((block) => ["image", "chart"].includes(block.block_type)),
     公式: blocks.filter((block) => ["equation", "equation_interline"].includes(block.block_type)),
   };
 
+  useEffect(() => {
+    if (!selectedBlockId) return;
+    document.querySelector(`[data-block-id="${selectedBlockId}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedBlockId, tab]);
+
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-white">
       <div className="flex h-12 items-center gap-5 border-b border-zinc-200 px-4 text-sm">
-        {(["markdown", "chemistry", "json"] as Tab[]).map((item) => (
+        {TABS.map((item) => (
           <button
-            key={item}
-            onClick={() => onTab(item)}
-            className={tab === item ? "font-medium text-[var(--accent)]" : "text-zinc-500"}
+            key={item.id}
+            onClick={() => onTab(item.id)}
+            className={tab === item.id ? "font-medium text-[var(--accent)]" : "text-zinc-500"}
           >
-            {item === "markdown" ? "Markdown" : item === "chemistry" ? "化学元素" : "JSON"}
+            {item.label}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className={`min-h-0 flex-1 ${tab === "json" || tab === "extract" ? "overflow-hidden" : "overflow-auto"}`}>
         {tab === "markdown" && (
           <div className="prose prose-sm max-w-none px-5 py-4 text-[14px] leading-7 text-zinc-800">
             {markdown ? (
@@ -59,8 +92,13 @@ export default function ParsedPanel({
               {blocks.map((block) => (
                 <button
                   key={block.id}
-                  onClick={() => onJump(block.page_no, block.bbox_norm)}
-                  className="block w-full rounded-lg border border-transparent px-3 py-2 text-left text-[13px] hover:border-zinc-200 hover:bg-zinc-50"
+                  data-block-id={block.id}
+                  onClick={() => onJump(block.page_no, block.bbox_norm, block.id)}
+                  className={`block w-full rounded-lg border px-3 py-2 text-left text-[13px] ${
+                    selectedBlockId === block.id
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                      : "border-transparent hover:border-zinc-200 hover:bg-zinc-50"
+                  }`}
                 >
                   <div className="mb-1 text-[11px] text-zinc-400">
                     P{block.page_no} · {block.block_type}
@@ -82,8 +120,13 @@ export default function ParsedPanel({
                   {items.map((block) => (
                     <button
                       key={block.id}
-                      onClick={() => onJump(block.page_no, block.bbox_norm)}
-                      className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-left"
+                      data-block-id={block.id}
+                      onClick={() => onJump(block.page_no, block.bbox_norm, block.id)}
+                      className={`w-full rounded-xl border px-3 py-3 text-left ${
+                        selectedBlockId === block.id
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                          : "border-zinc-200"
+                      }`}
                     >
                       <div className="text-[11px] text-zinc-400">
                         Page {block.page_no} · {block.block_type}
@@ -111,6 +154,19 @@ export default function ParsedPanel({
             extensions={[json()]}
             editable={false}
             basicSetup={{ lineNumbers: true }}
+          />
+        )}
+
+        {tab === "extract" && (
+          <ExtractedResults
+            documentId={documentId}
+            reactions={reactions}
+            tables={tables}
+            kind={extractKind}
+            onKind={onExtractKind}
+            selectedId={selectedExtractId}
+            onSelectReaction={onSelectReaction}
+            onSelectTable={onSelectTable}
           />
         )}
       </div>

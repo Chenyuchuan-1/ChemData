@@ -23,6 +23,24 @@ export interface ParsedBlock {
   meta: Record<string, unknown>;
 }
 
+export interface TableRecord {
+  id: string;
+  document_id: string;
+  table_id: string;
+  payload: Record<string, unknown>;
+  provenance: {
+    page_no?: number;
+    bbox?: number[];
+    source_type?: string;
+    source_text?: string;
+    source_image_path?: string | null;
+  };
+  validation: Record<string, unknown>;
+  review_status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ReactionRecord {
   id: string;
   document_id: string;
@@ -114,6 +132,7 @@ export const api = {
   markdown: (id: string) => request<{ markdown: string }>(`/api/documents/${id}/markdown`),
   blocks: (id: string) => request<{ blocks: ParsedBlock[] }>(`/api/documents/${id}/blocks`),
   reactions: (id: string) => request<{ reactions: ReactionRecord[] }>(`/api/documents/${id}/reactions`),
+  tables: (id: string) => request<{ tables: TableRecord[] }>(`/api/documents/${id}/tables`),
   updateReaction: (id: string, body: Record<string, unknown>) =>
     request<{ reaction: ReactionRecord }>(`/api/reactions/${id}`, {
       method: "PATCH",

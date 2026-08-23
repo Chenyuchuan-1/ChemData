@@ -1,0 +1,9 @@
+# Uses the existing dataagent env (torch CPU, transformers, fastapi, pillow).
+# Extra: timm (required by UniParser/MolParser-Mobile custom code).
+# Weights: UniParser/MolParser-Mobile from Hugging Face.
+timm
+fastapi
+uvicorn
+pillow
+transformers
+torch

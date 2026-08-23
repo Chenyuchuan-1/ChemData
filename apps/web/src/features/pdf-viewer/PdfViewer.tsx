@@ -38,14 +38,18 @@ export default function PdfViewer({
   filename,
   highlight,
   onPageChange,
+  onPdfClick,
 }: {
   url: string;
   filename: string;
   highlight?: Highlight | null;
   onPageChange?: (page: number, total: number) => void;
+  onPdfClick?: (page: number, x: number, y: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const onPdfClickRef = useRef(onPdfClick);
+  onPdfClickRef.current = onPdfClick;
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
   const [scale, setScale] = useState(1.15);
@@ -118,9 +122,17 @@ export default function PdfViewer({
         overlay.style.width = `${viewport.width}px`;
         overlay.style.height = `${viewport.height}px`;
         const wrap = document.createElement("div");
-        wrap.className = "relative mx-auto";
+        wrap.className = "relative mx-auto cursor-crosshair";
         wrap.style.width = `${viewport.width}px`;
         wrap.append(canvas, overlay);
+        wrap.addEventListener("click", (event) => {
+          const rect = wrap.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return;
+          const nx = (event.clientX - rect.left) / rect.width;
+          const ny = (event.clientY - rect.top) / rect.height;
+          if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
+          onPdfClickRef.current?.(page, nx, ny);
+        });
         host.append(wrap);
 
         renderTaskRef.current?.cancel();
@@ -191,6 +203,7 @@ export default function PdfViewer({
     <section className="flex min-w-0 flex-1 flex-col border-r border-zinc-200 bg-[#fafafa]">
       <div className="flex h-12 items-center gap-3 border-b border-zinc-200 bg-white px-3 text-sm">
         <span className="max-w-[180px] truncate text-zinc-700">{filename}</span>
+        {onPdfClick && <span className="text-[11px] text-zinc-400">点击原文定位字段</span>}
         <div className="ml-auto flex items-center gap-1 text-zinc-600">
           <button className="rounded p-1 hover:bg-zinc-50" onClick={() => setPage((value) => Math.max(1, value - 1))}>
             <ChevronLeft size={16} />

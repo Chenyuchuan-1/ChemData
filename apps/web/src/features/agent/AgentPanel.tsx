@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
-import { DEFAULT_SCHEMA_TEXT, type AgentEvent, type ReactionRecord } from "../../api/client";
+import { DEFAULT_SCHEMA_TEXT, type AgentEvent, type ReactionRecord, type TableRecord } from "../../api/client";
+import ExtractedResults, { type ExtractKind } from "../extract/ExtractedResults";
 
 const STAGES = [
   { id: "read_document", label: "读取文档" },
@@ -14,18 +15,30 @@ const STAGES = [
 ];
 
 export default function AgentPanel({
+  documentId,
   events,
   running,
   reactions,
+  tables,
+  extractKind,
+  onExtractKind,
+  selectedExtractId,
   onStart,
   onSelect,
+  onSelectTable,
   onOpenReview,
 }: {
+  documentId: string;
   events: AgentEvent[];
   running: boolean;
   reactions: ReactionRecord[];
+  tables: TableRecord[];
+  extractKind: ExtractKind;
+  onExtractKind: (kind: ExtractKind) => void;
+  selectedExtractId?: string | null;
   onStart: (example: unknown, instruction: string) => void;
   onSelect: (reaction: ReactionRecord) => void;
+  onSelectTable: (table: TableRecord) => void;
   onOpenReview: (reaction: ReactionRecord) => void;
 }) {
   const [schemaText, setSchemaText] = useState(DEFAULT_SCHEMA_TEXT);
@@ -116,38 +129,18 @@ export default function AgentPanel({
         )}
       </div>
 
-      <div className="flex-1 overflow-auto px-5 py-4">
-        <div className="text-sm font-medium">抽取结果</div>
-        <p className="mt-1 text-xs text-zinc-400">找到 {reactions.length} 条化学反应</p>
-        <div className="mt-3 space-y-3">
-          {reactions.map((reaction, index) => {
-            const conditions = (reaction.payload.conditions ?? {}) as Record<string, unknown>;
-            return (
-              <div key={reaction.id} className="rounded-xl border border-zinc-200 p-3">
-                <button className="w-full text-left" onClick={() => onSelect(reaction)}>
-                  <div className="text-sm font-medium">Reaction {String(index + 1).padStart(2, "0")}</div>
-                  <div className="mt-1 text-[12px] text-zinc-400">
-                    Page {reaction.provenance.page_no ?? "-"} · {reaction.provenance.source_type ?? "text"}
-                    {reaction.provenance.entry_label ? ` · ${reaction.provenance.entry_label}` : ""}
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[12px] text-zinc-600">
-                    <div>Yield {String(reaction.payload.yield_percent ?? "null")}</div>
-                    <div>Temperature {conditions.temperature_c != null ? `${conditions.temperature_c} °C` : "null"}</div>
-                  </div>
-                </button>
-                <div className="mt-3 flex gap-2 text-[12px]">
-                  <button className="text-[var(--accent)]" onClick={() => onSelect(reaction)}>
-                    查看原文
-                  </button>
-                  <button className="text-zinc-500" onClick={() => onOpenReview(reaction)}>
-                    编辑
-                  </button>
-                  <span className="ml-auto text-zinc-400">{reaction.review_status}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      <div className="min-h-0 flex-1">
+        <ExtractedResults
+          documentId={documentId}
+          reactions={reactions}
+          tables={tables}
+          kind={extractKind}
+          onKind={onExtractKind}
+          selectedId={selectedExtractId}
+          onSelectReaction={onSelect}
+          onSelectTable={onSelectTable}
+          onReview={onOpenReview}
+        />
       </div>
     </div>
   );

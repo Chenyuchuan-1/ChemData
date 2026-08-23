@@ -125,8 +125,8 @@ def depict(smiles: str | None, reaction_smiles: str | None, width: int = 420, he
         parsed = _split_reaction(reaction_smiles)
         if not parsed:
             return DepictResponse(error="invalid_reaction_smiles")
-        reactants, _agents, products = parsed
-        for role, group in (("reactant", reactants), ("product", products)):
+        reactants, agents, products = parsed
+        for role, group in (("reactant", reactants), ("agent", agents), ("product", products)):
             for item in group:
                 encoded = _mol_png(item, max(120, width // 3), height)
                 parts.append({"role": role, "smiles": item, "image_base64": encoded})
