@@ -5,7 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
-import { assetUrl, type ParsedBlock, type ReactionRecord, type TableRecord } from "../../api/client";
+import { assetUrl, type PageCounts, type ParsedBlock, type ReactionRecord, type TableRecord } from "../../api/client";
 import ExtractedResults, { type ExtractKind } from "../extract/ExtractedResults";
 
 type Tab = "markdown" | "chemistry" | "json" | "extract";
@@ -21,6 +21,9 @@ export default function ParsedPanel({
   documentId,
   tab,
   onTab,
+  page,
+  pageTotal,
+  pageCounts,
   markdown,
   blocks,
   onJump,
@@ -36,6 +39,9 @@ export default function ParsedPanel({
   documentId: string;
   tab: Tab;
   onTab: (tab: Tab) => void;
+  page: number;
+  pageTotal: number;
+  pageCounts?: PageCounts | null;
   markdown: string;
   blocks: ParsedBlock[];
   onJump: (page: number, bbox: number[], blockId?: string) => void;
@@ -77,6 +83,10 @@ export default function ParsedPanel({
             {item.label}
           </button>
         ))}
+        <div className="ml-auto text-[11px] text-zinc-400">
+          第 {page} / {pageTotal} 页
+          {pageCounts ? ` · ${pageCounts.blocks.page} 块` : ""}
+        </div>
       </div>
       <div className={`min-h-0 flex-1 ${tab === "json" || tab === "extract" ? "overflow-hidden" : "overflow-auto"}`}>
         {tab === "markdown" && (
@@ -86,7 +96,7 @@ export default function ParsedPanel({
                 {markdown}
               </ReactMarkdown>
             ) : (
-              <p className="text-sm text-zinc-400">尚未解析。大文件会自动分块；也可点击顶部「开始解析」。</p>
+              <p className="text-sm text-zinc-400">本页还没有解析文本。大文件会自动分块；也可点击顶部「开始解析」。</p>
             )}
             <div className="mt-6 space-y-2">
               {blocks.map((block) => (
@@ -160,6 +170,8 @@ export default function ParsedPanel({
         {tab === "extract" && (
           <ExtractedResults
             documentId={documentId}
+            page={page}
+            counts={pageCounts}
             reactions={reactions}
             tables={tables}
             kind={extractKind}

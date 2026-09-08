@@ -6,9 +6,12 @@ from typing import Any
 import fitz
 from PIL import Image
 
+from app.pdf.io import ensure_unlocked, open_pdf
+
 
 def pdf_info(pdf_path: str | Path) -> dict[str, Any]:
-    doc = fitz.open(str(pdf_path))
+    pdf_path = ensure_unlocked(pdf_path)
+    doc = open_pdf(pdf_path)
     try:
         pages = []
         for index, page in enumerate(doc):
@@ -38,7 +41,7 @@ def render_pages(
     pdf_path = Path(pdf_path)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    doc = fitz.open(str(pdf_path))
+    doc = open_pdf(pdf_path)
     last = end_page if end_page is not None else doc.page_count - 1
     last = min(last, doc.page_count - 1)
     zoom = dpi / 72
@@ -94,7 +97,7 @@ def crop_page(
     if not pdf_path:
         raise ValueError("Either page_image_path or pdf_path is required")
 
-    doc = fitz.open(str(pdf_path))
+    doc = open_pdf(pdf_path)
     try:
         page = doc[page_no - 1]
         rect = page.rect

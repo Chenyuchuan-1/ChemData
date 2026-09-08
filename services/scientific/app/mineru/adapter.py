@@ -298,9 +298,9 @@ class MinerUAdapter:
         warnings: list[str],
     ) -> MinerUParseResult:
         """Last-resort parser so the workbench still works if MinerU is unavailable."""
-        import fitz
+        from app.pdf.io import open_pdf
 
-        doc = fitz.open(str(input_pdf))
+        doc = open_pdf(input_pdf)
         last = end_page if end_page is not None else doc.page_count - 1
         last = min(last, doc.page_count - 1)
         blocks_out: list[dict[str, Any]] = []

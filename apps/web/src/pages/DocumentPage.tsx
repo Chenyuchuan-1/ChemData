@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Sparkles } from "lucide-react";
 import {
@@ -7,6 +7,7 @@ import {
   pdfUrl,
   type AgentEvent,
   type DocumentRecord,
+  type PageCounts,
   type ParsedBlock,
   type ParseProgress,
   type ReactionRecord,
@@ -45,7 +46,11 @@ export default function DocumentPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [parseProgress, setParseProgress] = useState<ParseProgress | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pageTotal, setPageTotal] = useState(1);
+  const [pageCounts, setPageCounts] = useState<PageCounts | null>(null);
   const parsePollRef = useRef<number | null>(null);
+  const pageLoadRef = useRef(0);
 
   const stopParsePoll = () => {
     if (parsePollRef.current !== null) {
@@ -54,20 +59,30 @@ export default function DocumentPage() {
     }
   };
 
-  const refreshDocument = async (id: string) => {
-    const [list, detail, md, extracted, tableRows] = await Promise.all([
-      api.listDocuments(),
-      api.getDocument(id),
-      api.markdown(id).catch(() => ({ markdown: "" })),
-      api.reactions(id).catch(() => ({ reactions: [] })),
-      api.tables(id).catch(() => ({ tables: [] })),
-    ]);
+  const loadPageView = async (id: string, page: number) => {
+    const seq = ++pageLoadRef.current;
+    const view = await api.getDocumentPage(id, page);
+    if (seq !== pageLoadRef.current) return;
+    setMarkdown(view.markdown);
+    setBlocks(view.blocks);
+    setReactions(view.reactions);
+    setTables(view.tables);
+    setPageCounts(view.counts);
+    if (view.page_count > 0) setPageTotal(view.page_count);
+  };
+
+  const refreshDocument = async (id: string, page = pdfPage) => {
+    const [list, detail] = await Promise.all([api.listDocuments(), api.getDocument(id)]);
     setDocuments(list.documents);
     setDocument(detail.document);
-    setBlocks(detail.blocks);
-    setMarkdown(md.markdown);
-    setReactions(extracted.reactions);
-    setTables(tableRows.tables);
+    if (detail.document.page_count > 0) setPageTotal(detail.document.page_count);
+    await loadPageView(id, page).catch(() => {
+      setMarkdown("");
+      setBlocks([]);
+      setReactions([]);
+      setTables([]);
+      setPageCounts(null);
+    });
     return detail.document;
   };
 
@@ -101,9 +116,13 @@ export default function DocumentPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setPdfPage(1);
+    setHighlight(null);
+    setSelectedBlockId(null);
+    setSelectedExtractId(null);
     void (async () => {
       try {
-        const loaded = await refreshDocument(documentId);
+        const loaded = await refreshDocument(documentId, 1);
         if (cancelled) return;
         if (loaded.parse_status === "parsing") {
           watchParse(documentId);
@@ -125,10 +144,24 @@ export default function DocumentPage() {
     };
   }, [documentId]);
 
+  useEffect(() => {
+    if (!documentId) return;
+    const timer = window.setTimeout(() => {
+      void loadPageView(documentId, pdfPage).catch(() => undefined);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [documentId, pdfPage, document?.parse_status]);
+
   const jump = (page: number, bbox: number[], blockId?: string) => {
     if (blockId) setSelectedBlockId(blockId);
+    setPdfPage(page);
     setHighlight({ page_no: page, bbox });
   };
+
+  const handlePdfPageChange = useCallback((page: number, total: number) => {
+    setPageTotal(total);
+    setPdfPage((current) => (current === page ? current : page));
+  }, []);
 
   const selectReaction = (reaction: ReactionRecord) => {
     setSelectedExtractId(reaction.id);
@@ -172,8 +205,7 @@ export default function DocumentPage() {
       const event = JSON.parse(message.data) as AgentEvent;
       setEvents((current) => [...current, event]);
       if (event.type === "record_saved" || event.type === "agent_completed") {
-        void api.reactions(documentId).then((result) => setReactions(result.reactions));
-        void api.tables(documentId).then((result) => setTables(result.tables)).catch(() => undefined);
+        void loadPageView(documentId, pdfPage).catch(() => undefined);
       }
       if (event.type === "agent_completed" || event.type === "agent_failed") {
         setRunning(false);
@@ -268,7 +300,9 @@ export default function DocumentPage() {
           <PdfViewer
             url={pdfUrl(documentId)}
             filename={current?.filename ?? ""}
+            page={pdfPage}
             highlight={highlight}
+            onPageChange={handlePdfPageChange}
             onPdfClick={handlePdfClick}
           />
         </div>
@@ -285,6 +319,9 @@ export default function DocumentPage() {
               documentId={documentId}
               tab={tab}
               onTab={setTab}
+              page={pdfPage}
+              pageTotal={pageTotal}
+              pageCounts={pageCounts}
               markdown={markdown}
               blocks={blocks}
               onJump={jump}
@@ -303,6 +340,8 @@ export default function DocumentPage() {
               documentId={documentId}
               events={events}
               running={running}
+              page={pdfPage}
+              pageCounts={pageCounts}
               reactions={reactions}
               tables={tables}
               extractKind={extractKind}

@@ -70,6 +70,13 @@ export function listBlocks(documentId: string, pageNo?: number): BlockRow[] {
   return (rows as Record<string, unknown>[]).map(mapBlock);
 }
 
+export function countBlocks(documentId: string, pageNo?: number): number {
+  const row = pageNo
+    ? (db.prepare("SELECT COUNT(*) AS n FROM parsed_blocks WHERE document_id = ? AND page_no = ?").get(documentId, pageNo) as { n: number })
+    : (db.prepare("SELECT COUNT(*) AS n FROM parsed_blocks WHERE document_id = ?").get(documentId) as { n: number });
+  return Number(row.n);
+}
+
 export function searchBlocks(documentId: string, query: string, limit = 30): BlockRow[] {
   const rows = db
     .prepare(
@@ -367,6 +374,19 @@ export function readMarkdown(documentId: string): string {
   const file = path.join(documentDir(documentId), "mineru", "markdown.md");
   if (!fs.existsSync(file)) return "";
   return fs.readFileSync(file, "utf8");
+}
+
+export function markdownFromBlocks(pageNo: number, blocks: BlockRow[]): string {
+  if (blocks.length === 0) return "";
+  const parts = blocks.map((block) => {
+    const text = block.text?.trim();
+    return text || `*[${block.block_type}]*`;
+  });
+  return `## 第 ${pageNo} 页\n\n${parts.join("\n\n")}\n`;
+}
+
+export function readMarkdownForPage(documentId: string, pageNo: number): string {
+  return markdownFromBlocks(pageNo, listBlocks(documentId, pageNo));
 }
 
 export function listPageImages(documentId: string): Array<{ page_no: number; path: string }> {

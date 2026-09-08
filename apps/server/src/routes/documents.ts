@@ -16,9 +16,14 @@ import {
   isLargeDocument,
   listBlocks,
   listDocuments,
+  markdownFromBlocks,
   maybeAutoParseLargeDocument,
   readMarkdown,
+  readMarkdownForPage,
+  countBlocks,
 } from "../services/documents.js";
+import { countReactions, listReactions } from "../services/reactions.js";
+import { countTables, listTables } from "../services/tables.js";
 
 export async function registerDocumentRoutes(app: FastifyInstance) {
   app.get("/api/documents", async () => ({ documents: listDocuments() }));
@@ -60,7 +65,36 @@ export async function registerDocumentRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const document = getDocument(id);
     if (!document) return reply.code(404).send({ error: "document_not_found" });
-    return { document, blocks: listBlocks(id) };
+    const query = request.query as { page?: string };
+    const page = query.page ? Number(query.page) : undefined;
+    return {
+      document,
+      blocks: page ? listBlocks(id, page) : [],
+    };
+  });
+
+  app.get("/api/documents/:id/page", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const document = getDocument(id);
+    if (!document) return reply.code(404).send({ error: "document_not_found" });
+    const query = request.query as { n?: string; page?: string };
+    const page = Math.max(1, Number(query.n || query.page) || 1);
+    const blocks = listBlocks(id, page);
+    const reactions = listReactions(id, page);
+    const tables = listTables(id, page);
+    return {
+      page,
+      page_count: document.page_count,
+      markdown: markdownFromBlocks(page, blocks),
+      blocks,
+      reactions,
+      tables,
+      counts: {
+        blocks: { page: blocks.length, total: countBlocks(id) },
+        reactions: { page: reactions.length, total: countReactions(id) },
+        tables: { page: tables.length, total: countTables(id) },
+      },
+    };
   });
 
   app.delete("/api/documents/:id", async (request, reply) => {
@@ -82,7 +116,7 @@ export async function registerDocumentRoutes(app: FastifyInstance) {
     return {
       accepted: true,
       document,
-      blocks: listBlocks(id),
+      blocks: [],
       chunked: isLargeDocument(document) || document.parse_status === "parsing",
     };
   });
@@ -118,7 +152,9 @@ export async function registerDocumentRoutes(app: FastifyInstance) {
   app.get("/api/documents/:id/markdown", async (request) => {
     const { id } = request.params as { id: string };
     getDocumentOrThrow(id);
-    return { markdown: readMarkdown(id) };
+    const query = request.query as { page?: string };
+    const page = query.page ? Number(query.page) : undefined;
+    return { markdown: page ? readMarkdownForPage(id, page) : readMarkdown(id) };
   });
 
   app.get("/api/documents/:id/blocks", async (request) => {

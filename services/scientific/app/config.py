@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     mineru_chunk_overlap: int | None = None
 
     atom_mapper: str = "rxnmapper"
+    pdf_password: str = ""
+    pdf_passwords: str = ""
 
     @field_validator("mineru_chunk_pages", "mineru_chunk_overlap", mode="before")
     @classmethod

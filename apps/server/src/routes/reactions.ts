@@ -13,13 +13,17 @@ export async function registerReactionRoutes(app: FastifyInstance) {
   app.get("/api/documents/:id/reactions", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!getDocument(id)) return reply.code(404).send({ error: "document_not_found" });
-    return { reactions: listReactions(id) };
+    const query = request.query as { page?: string };
+    const page = query.page ? Number(query.page) : undefined;
+    return { reactions: listReactions(id, page) };
   });
 
   app.get("/api/documents/:id/tables", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!getDocument(id)) return reply.code(404).send({ error: "document_not_found" });
-    return { tables: listTables(id) };
+    const query = request.query as { page?: string };
+    const page = query.page ? Number(query.page) : undefined;
+    return { tables: listTables(id, page) };
   });
 
   app.get("/api/reactions/:reactionId", async (request, reply) => {

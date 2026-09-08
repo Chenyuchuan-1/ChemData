@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, assetUrl, type ParsedBlock, type ReactionRecord, type TableRecord } from "../../api/client";
+import { api, assetUrl, type PageCounts, type ParsedBlock, type ReactionRecord, type TableRecord } from "../../api/client";
 
 export type ExtractKind = "reactions" | "tables";
 
@@ -190,6 +190,8 @@ function ReactionCard({
 
 export default function ExtractedResults({
   documentId,
+  page,
+  counts,
   reactions,
   tables,
   kind,
@@ -200,6 +202,8 @@ export default function ExtractedResults({
   onReview,
 }: {
   documentId: string;
+  page?: number;
+  counts?: PageCounts | null;
   reactions: ReactionRecord[];
   tables: TableRecord[];
   kind: ExtractKind;
@@ -220,7 +224,10 @@ export default function ExtractedResults({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2">
-        <div className="text-xs font-medium text-zinc-600">Agent 抽取结果</div>
+        <div className="text-xs font-medium text-zinc-600">
+          Agent 抽取结果
+          {page ? <span className="ml-2 font-normal text-zinc-400">第 {page} 页</span> : null}
+        </div>
         <div className="ml-auto flex rounded-lg border border-zinc-200 p-0.5 text-[11px]">
           {(["reactions", "tables"] as ExtractKind[]).map((item) => (
             <button
@@ -228,14 +235,18 @@ export default function ExtractedResults({
               onClick={() => onKind(item)}
               className={`rounded-md px-2 py-1 ${kind === item ? "bg-[var(--accent)] text-white" : "text-zinc-500"}`}
             >
-              {item === "reactions" ? `化学反应 ${reactions.length}` : `表格 ${tables.length}`}
+              {item === "reactions"
+                ? `化学反应 ${counts ? `${counts.reactions.page}/${counts.reactions.total}` : reactions.length}`
+                : `表格 ${counts ? `${counts.tables.page}/${counts.tables.total}` : tables.length}`}
             </button>
           ))}
         </div>
       </div>
       <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-auto px-3 py-3">
         {kind === "reactions" && reactions.length === 0 && (
-          <div className="text-xs text-zinc-400">还没有反应记录。解析完成后在 Agent 里开始抽取。</div>
+          <div className="text-xs text-zinc-400">
+            {page ? "本页没有反应记录。" : "还没有反应记录。"}解析完成后可在 Agent 里开始抽取。
+          </div>
         )}
         {kind === "reactions" &&
           reactions.map((reaction, index) => (
@@ -248,7 +259,9 @@ export default function ExtractedResults({
               onReview={onReview ? () => onReview(reaction) : undefined}
             />
           ))}
-        {kind === "tables" && tables.length === 0 && <div className="text-xs text-zinc-400">还没有表格记录。</div>}
+        {kind === "tables" && tables.length === 0 && (
+          <div className="text-xs text-zinc-400">{page ? "本页没有表格记录。" : "还没有表格记录。"}</div>
+        )}
         {kind === "tables" &&
           tables.map((table) => {
             const title = String(table.payload.table_title ?? table.table_id);

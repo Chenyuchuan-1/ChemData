@@ -12,18 +12,12 @@ interface Highlight {
 }
 
 async function loadPdfDocument(url: string, signal: AbortSignal): Promise<PDFDocumentProxy> {
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`PDF 加载失败（${response.status}）`);
-  }
-  const data = new Uint8Array(await response.arrayBuffer());
-  if (data.byteLength < 8) {
-    throw new Error("PDF 文件为空或被截断");
-  }
   const task = pdfjs.getDocument({
-    data,
-    disableRange: true,
-    disableStream: true,
+    url,
+    disableRange: false,
+    disableStream: false,
+    disableAutoFetch: true,
+    rangeChunkSize: 65536,
     isOffscreenCanvasSupported: false,
     wasmUrl: "/pdfjs/wasm/",
     useWasm: true,
@@ -36,12 +30,14 @@ async function loadPdfDocument(url: string, signal: AbortSignal): Promise<PDFDoc
 export default function PdfViewer({
   url,
   filename,
+  page: pageProp,
   highlight,
   onPageChange,
   onPdfClick,
 }: {
   url: string;
   filename: string;
+  page?: number;
   highlight?: Highlight | null;
   onPageChange?: (page: number, total: number) => void;
   onPdfClick?: (page: number, x: number, y: number) => void;
@@ -49,9 +45,12 @@ export default function PdfViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const onPdfClickRef = useRef(onPdfClick);
+  const onPageChangeRef = useRef(onPageChange);
   onPdfClickRef.current = onPdfClick;
+  onPageChangeRef.current = onPageChange;
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
-  const [page, setPage] = useState(1);
+  const [internalPage, setInternalPage] = useState(1);
+  const page = pageProp ?? internalPage;
   const [scale, setScale] = useState(1.15);
   const [query, setQuery] = useState("");
   const [fitWidth, setFitWidth] = useState(true);
@@ -62,12 +61,15 @@ export default function PdfViewer({
   useEffect(() => {
     const controller = new AbortController();
     setPdf(null);
-    setPage(1);
+    setInternalPage(1);
     setLoadError(null);
     setLoading(true);
+    let loaded: PDFDocumentProxy | null = null;
     void loadPdfDocument(url, controller.signal)
       .then((doc) => {
+        loaded = doc;
         if (!controller.signal.aborted) setPdf(doc);
+        else void doc.destroy();
       })
       .catch((error) => {
         if (controller.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) return;
@@ -76,7 +78,10 @@ export default function PdfViewer({
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      void loaded?.destroy();
+    };
   }, [url]);
 
   useEffect(() => {
@@ -90,8 +95,14 @@ export default function PdfViewer({
   }, []);
 
   useEffect(() => {
-    if (highlight?.page_no) setPage(highlight.page_no);
-  }, [highlight?.page_no]);
+    if (!highlight?.page_no) return;
+    if (pageProp == null) setInternalPage(highlight.page_no);
+  }, [highlight?.page_no, pageProp]);
+
+  useEffect(() => {
+    if (!pdf) return;
+    onPageChangeRef.current?.(page, pdf.numPages);
+  }, [pdf, page]);
 
   useEffect(() => {
     if (!pdf || !containerRef.current) return;
@@ -174,7 +185,6 @@ export default function PdfViewer({
           }
         }
 
-        onPageChange?.(page, pdf.numPages);
         if (!fitWidth) setScale(nextScale);
       } catch (error) {
         if (disposed) return;
@@ -195,9 +205,14 @@ export default function PdfViewer({
       renderTaskRef.current = null;
       pageProxy?.cleanup();
     };
-  }, [pdf, page, scale, fitWidth, highlight, query, onPageChange, hostWidth]);
+  }, [pdf, page, scale, fitWidth, highlight, query, hostWidth]);
 
   const total = pdf?.numPages ?? 1;
+  const goTo = (next: number) => {
+    const clamped = Math.max(1, Math.min(total, next));
+    if (pageProp == null) setInternalPage(clamped);
+    onPageChangeRef.current?.(clamped, total);
+  };
 
   return (
     <section className="flex min-w-0 flex-1 flex-col border-r border-zinc-200 bg-[#fafafa]">
@@ -205,13 +220,13 @@ export default function PdfViewer({
         <span className="max-w-[180px] truncate text-zinc-700">{filename}</span>
         {onPdfClick && <span className="text-[11px] text-zinc-400">点击原文定位字段</span>}
         <div className="ml-auto flex items-center gap-1 text-zinc-600">
-          <button className="rounded p-1 hover:bg-zinc-50" onClick={() => setPage((value) => Math.max(1, value - 1))}>
+          <button className="rounded p-1 hover:bg-zinc-50" onClick={() => goTo(page - 1)}>
             <ChevronLeft size={16} />
           </button>
           <span className="min-w-16 text-center text-xs">
             {page} / {total}
           </span>
-          <button className="rounded p-1 hover:bg-zinc-50" onClick={() => setPage((value) => Math.min(total, value + 1))}>
+          <button className="rounded p-1 hover:bg-zinc-50" onClick={() => goTo(page + 1)}>
             <ChevronRight size={16} />
           </button>
         </div>

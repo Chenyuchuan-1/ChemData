@@ -91,6 +91,22 @@ export interface ParseProgress {
   message: string | null;
 }
 
+export interface PageCounts {
+  blocks: { page: number; total: number };
+  reactions: { page: number; total: number };
+  tables: { page: number; total: number };
+}
+
+export interface DocumentPageView {
+  page: number;
+  page_count: number;
+  markdown: string;
+  blocks: ParsedBlock[];
+  reactions: ReactionRecord[];
+  tables: TableRecord[];
+  counts: PageCounts;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
@@ -109,7 +125,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ ok: boolean }>("/api/health"),
   listDocuments: () => request<{ documents: DocumentRecord[] }>("/api/documents"),
-  getDocument: (id: string) => request<{ document: DocumentRecord; blocks: ParsedBlock[] }>(`/api/documents/${id}`),
+  getDocument: (id: string, page?: number) =>
+    request<{ document: DocumentRecord; blocks: ParsedBlock[] }>(
+      page ? `/api/documents/${id}?page=${page}` : `/api/documents/${id}`,
+    ),
+  getDocumentPage: (id: string, page: number) => request<DocumentPageView>(`/api/documents/${id}/page?n=${page}`),
   uploadDocument: async (file: File) => {
     const data = new FormData();
     data.append("file", file);
@@ -129,10 +149,16 @@ export const api = {
       },
     ),
   parseProgress: (id: string) => request<ParseProgress>(`/api/documents/${id}/parse-progress`),
-  markdown: (id: string) => request<{ markdown: string }>(`/api/documents/${id}/markdown`),
-  blocks: (id: string) => request<{ blocks: ParsedBlock[] }>(`/api/documents/${id}/blocks`),
-  reactions: (id: string) => request<{ reactions: ReactionRecord[] }>(`/api/documents/${id}/reactions`),
-  tables: (id: string) => request<{ tables: TableRecord[] }>(`/api/documents/${id}/tables`),
+  markdown: (id: string, page?: number) =>
+    request<{ markdown: string }>(page ? `/api/documents/${id}/markdown?page=${page}` : `/api/documents/${id}/markdown`),
+  blocks: (id: string, page?: number) =>
+    request<{ blocks: ParsedBlock[] }>(page ? `/api/documents/${id}/blocks?page=${page}` : `/api/documents/${id}/blocks`),
+  reactions: (id: string, page?: number) =>
+    request<{ reactions: ReactionRecord[] }>(
+      page ? `/api/documents/${id}/reactions?page=${page}` : `/api/documents/${id}/reactions`,
+    ),
+  tables: (id: string, page?: number) =>
+    request<{ tables: TableRecord[] }>(page ? `/api/documents/${id}/tables?page=${page}` : `/api/documents/${id}/tables`),
   updateReaction: (id: string, body: Record<string, unknown>) =>
     request<{ reaction: ReactionRecord }>(`/api/reactions/${id}`, {
       method: "PATCH",

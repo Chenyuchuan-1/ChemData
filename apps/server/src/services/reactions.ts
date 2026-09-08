@@ -27,11 +27,24 @@ function mapReaction(row: Record<string, unknown>): ReactionRecord {
   };
 }
 
-export function listReactions(documentId: string): ReactionRecord[] {
-  const rows = db
-    .prepare("SELECT * FROM reaction_records WHERE document_id = ? ORDER BY created_at ASC")
-    .all(documentId) as Record<string, unknown>[];
+const PAGE_FILTER = `CAST(COALESCE(json_extract(provenance_json, '$.page_no'), json_extract(provenance_json, '$.page')) AS INTEGER)`;
+
+export function listReactions(documentId: string, pageNo?: number): ReactionRecord[] {
+  const rows = pageNo
+    ? (db
+        .prepare(`SELECT * FROM reaction_records WHERE document_id = ? AND ${PAGE_FILTER} = ? ORDER BY created_at ASC`)
+        .all(documentId, pageNo) as Record<string, unknown>[])
+    : (db
+        .prepare("SELECT * FROM reaction_records WHERE document_id = ? ORDER BY created_at ASC")
+        .all(documentId) as Record<string, unknown>[]);
   return rows.map(mapReaction);
+}
+
+export function countReactions(documentId: string, pageNo?: number): number {
+  const row = pageNo
+    ? (db.prepare(`SELECT COUNT(*) AS n FROM reaction_records WHERE document_id = ? AND ${PAGE_FILTER} = ?`).get(documentId, pageNo) as { n: number })
+    : (db.prepare("SELECT COUNT(*) AS n FROM reaction_records WHERE document_id = ?").get(documentId) as { n: number });
+  return Number(row.n);
 }
 
 export function getReaction(id: string): ReactionRecord | undefined {

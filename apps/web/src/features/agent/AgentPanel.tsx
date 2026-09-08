@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
-import { DEFAULT_SCHEMA_TEXT, type AgentEvent, type ReactionRecord, type TableRecord } from "../../api/client";
+import { DEFAULT_SCHEMA_TEXT, type AgentEvent, type PageCounts, type ReactionRecord, type TableRecord } from "../../api/client";
 import ExtractedResults, { type ExtractKind } from "../extract/ExtractedResults";
 
 const STAGES = [
@@ -18,6 +18,8 @@ export default function AgentPanel({
   documentId,
   events,
   running,
+  page,
+  pageCounts,
   reactions,
   tables,
   extractKind,
@@ -31,6 +33,8 @@ export default function AgentPanel({
   documentId: string;
   events: AgentEvent[];
   running: boolean;
+  page?: number;
+  pageCounts?: PageCounts | null;
   reactions: ReactionRecord[];
   tables: TableRecord[];
   extractKind: ExtractKind;
@@ -132,6 +136,8 @@ export default function AgentPanel({
       <div className="min-h-0 flex-1">
         <ExtractedResults
           documentId={documentId}
+          page={page}
+          counts={pageCounts}
           reactions={reactions}
           tables={tables}
           kind={extractKind}

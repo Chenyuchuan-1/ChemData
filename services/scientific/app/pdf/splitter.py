@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 import fitz
 
+from app.pdf.io import open_pdf
+
 OverlapPolicy = Literal["keep_first", "keep_latest"]
 
 
@@ -80,7 +82,7 @@ def plan_chunks(
 def extract_chunk_pdf(source_pdf: Path, dest_pdf: Path, start_page: int, end_page: int) -> str:
     """Copy a page range without rasterizing. Returns sha256 of the chunk file."""
     dest_pdf.parent.mkdir(parents=True, exist_ok=True)
-    src = fitz.open(str(source_pdf))
+    src = open_pdf(source_pdf)
     out = fitz.open()
     try:
         out.insert_pdf(src, from_page=start_page, to_page=end_page)
@@ -94,7 +96,7 @@ def extract_chunk_pdf(source_pdf: Path, dest_pdf: Path, start_page: int, end_pag
 def extract_chunk_pdfs(source_pdf: Path, chunks: list[ChunkSpec], chunks_dir: Path) -> list[ChunkSpec]:
     """Open the source PDF once and write every missing chunk. Safe to resume."""
     chunks_dir.mkdir(parents=True, exist_ok=True)
-    src = fitz.open(str(source_pdf))
+    src = open_pdf(source_pdf)
     try:
         for spec in chunks:
             dest = chunks_dir / spec.chunk_id / "chunk.pdf"

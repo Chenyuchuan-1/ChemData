@@ -36,11 +36,24 @@ function mapTable(row: Record<string, unknown>): TableRecord {
   };
 }
 
-export function listTables(documentId: string): TableRecord[] {
-  const rows = db
-    .prepare("SELECT * FROM table_records WHERE document_id = ? ORDER BY created_at ASC")
-    .all(documentId) as Record<string, unknown>[];
+const PAGE_FILTER = `CAST(COALESCE(json_extract(provenance_json, '$.page_no'), json_extract(provenance_json, '$.page')) AS INTEGER)`;
+
+export function listTables(documentId: string, pageNo?: number): TableRecord[] {
+  const rows = pageNo
+    ? (db
+        .prepare(`SELECT * FROM table_records WHERE document_id = ? AND ${PAGE_FILTER} = ? ORDER BY created_at ASC`)
+        .all(documentId, pageNo) as Record<string, unknown>[])
+    : (db
+        .prepare("SELECT * FROM table_records WHERE document_id = ? ORDER BY created_at ASC")
+        .all(documentId) as Record<string, unknown>[]);
   return rows.map(mapTable);
+}
+
+export function countTables(documentId: string, pageNo?: number): number {
+  const row = pageNo
+    ? (db.prepare(`SELECT COUNT(*) AS n FROM table_records WHERE document_id = ? AND ${PAGE_FILTER} = ?`).get(documentId, pageNo) as { n: number })
+    : (db.prepare("SELECT COUNT(*) AS n FROM table_records WHERE document_id = ?").get(documentId) as { n: number });
+  return Number(row.n);
 }
 
 export function saveTable(input: {
